@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Get-ChildItem -Path ''IAM.API\\IAM.API\\IAM'' -Filter ''*.cs'' -Recurse | ForEach-Object { (Get-Content $_FullName) -replace ''OsitoPolarPlatform\\.API\\.IAM'', ''OsitoPolar.IAM.Service'' | Set-Content $_FullName }\")",
+      "Bash(powershell.exe -Command \"(Get-ChildItem -Filter ''*.cs'' -Recurse).FullName\")",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \"update-namespaces.ps1\")",
+      "Bash(dotnet restore:*)",
+      "Bash(dotnet build:*)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \"fix-references.ps1\")",
+      "Bash(dotnet run)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

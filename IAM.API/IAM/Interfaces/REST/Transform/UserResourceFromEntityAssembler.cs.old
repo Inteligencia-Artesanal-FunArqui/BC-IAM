@@ -1,0 +1,113 @@
+using OsitoPolar.IAM.Service.Domain.Model.Aggregates;
+using OsitoPolar.IAM.Service.Interfaces.REST.Resources;
+// using OsitoPolarPlatform.API.Profiles.Domain.Model.Aggregates;
+// using OsitoPolarPlatform.API.SubscriptionsAndPayments.Domain.Model.Aggregates;
+
+namespace OsitoPolar.IAM.Service.Interfaces.REST.Transform;
+
+public static class UserResourceFromEntityAssembler
+{
+    /// <summary>
+    /// Convert User entity with profile data to UserResource
+    /// </summary>
+    public static UserResource ToResourceFromEntity(
+        User user,
+        Owner? ownerProfile = null,
+        RenterProvider? providerProfile = null,
+        Subscription? ownerSubscription = null,
+        Subscription? providerSubscription = null,
+        int equipmentCount = 0,
+        int activeServiceRequestsCount = 0,
+        int clientCount = 0)
+    {
+        string? userType = null;
+        OwnerProfileData? ownerData = null;
+        ProviderProfileData? providerData = null;
+
+        // Determine user type and build profile data
+        if (ownerProfile != null)
+        {
+            userType = "Owner";
+
+            // Build subscription plan data for owner
+            var planData = ownerSubscription != null
+                ? new SubscriptionPlanData(
+                    ownerSubscription.Id,
+                    ownerSubscription.PlanName,
+                    "Owner",
+                    ownerSubscription.Price.Amount,
+                    ownerSubscription.BillingCycle.ToString(),
+                    ownerSubscription.MaxEquipment,
+                    null,
+                    ownerSubscription.Features.Select(f => f.Name).ToList()
+                )
+                : new SubscriptionPlanData(
+                    ownerProfile.PlanId,
+                    "Unknown Plan",
+                    "Owner",
+                    0m,
+                    "Monthly",
+                    ownerProfile.MaxUnits,
+                    null,
+                    new List<string>()
+                );
+
+            ownerData = new OwnerProfileData(
+                ownerProfile.Id,
+                ownerProfile.Balance,
+                planData,
+                ownerProfile.MaxUnits,
+                equipmentCount,
+                activeServiceRequestsCount
+            );
+        }
+        else if (providerProfile != null)
+        {
+            userType = "Provider";
+
+            // Build subscription plan data for provider
+            var planData = providerSubscription != null
+                ? new SubscriptionPlanData(
+                    providerSubscription.Id,
+                    providerSubscription.PlanName,
+                    "Provider",
+                    providerSubscription.Price.Amount,
+                    providerSubscription.BillingCycle.ToString(),
+                    null,
+                    providerSubscription.MaxClients,
+                    providerSubscription.Features.Select(f => f.Name).ToList()
+                )
+                : new SubscriptionPlanData(
+                    providerProfile.PlanId,
+                    "Unknown Plan",
+                    "Provider",
+                    0m,
+                    "Monthly",
+                    null,
+                    providerProfile.MaxClients,
+                    new List<string>()
+                );
+
+            providerData = new ProviderProfileData(
+                providerProfile.Id,
+                providerProfile.CompanyName,
+                providerProfile.TaxId,
+                providerProfile.Balance,
+                planData,
+                providerProfile.MaxClients,
+                clientCount,
+                activeServiceRequestsCount
+            );
+        }
+
+        return new UserResource(
+            user.Id,
+            user.Username,
+            userType,
+            user.CreatedDate?.DateTime ?? DateTime.UtcNow,
+            user.TwoFactorEnabled,
+            ownerData,
+            providerData
+        );
+    }
+}
