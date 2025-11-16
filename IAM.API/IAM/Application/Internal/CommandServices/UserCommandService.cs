@@ -3,10 +3,10 @@ using OsitoPolar.IAM.Service.Domain.Model.Aggregates;
 using OsitoPolar.IAM.Service.Domain.Model.Commands;
 using OsitoPolar.IAM.Service.Domain.Repositories;
 using OsitoPolar.IAM.Service.Domain.Services;
+using OsitoPolar.IAM.Service.Infrastructure.External.Http;
 using OsitoPolar.IAM.Service.Shared.Domain.Repositories;
-// using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
-// using OsitoPolarPlatform.API.Notifications.Domain.Model.Commands;
-// using OsitoPolarPlatform.API.Notifications.Domain.Model.ValueObjects;
+using MassTransit;
+using OsitoPolar.Shared.Events.Events;
 
 namespace OsitoPolar.IAM.Service.Application.Internal.CommandServices;
 
@@ -23,9 +23,9 @@ public class UserCommandService(
     ITokenService tokenService,
     IHashingService hashingService,
     IUnitOfWork unitOfWork,
-    ITwoFactorService twoFactorService)
-    // TODO: Re-enable email notifications when Notifications microservice is available
-    // IEmailCommandService emailCommandService)
+    ITwoFactorService twoFactorService,
+    INotificationsHttpFacade notificationsHttpFacade,
+    IPublishEndpoint publishEndpoint)
     : IUserCommandService
 {
     /**
@@ -110,11 +110,32 @@ public class UserCommandService(
     
             Console.WriteLine("[SignUp] Adding user to repository...");
             await userRepository.AddAsync(user);
-        
+
             Console.WriteLine("[SignUp] Completing transaction...");
             await unitOfWork.CompleteAsync();
-        
+
             Console.WriteLine($"[SignUp] SUCCESS: User {command.Username} created successfully");
+
+            // Publish UserRegisteredEvent to RabbitMQ
+            try
+            {
+                var userRegisteredEvent = new UserRegisteredEvent
+                {
+                    UserId = user.Id,
+                    Username = user.Username,
+                    Email = user.Username, // Assuming username is email
+                    Role = "Owner", // Default role, adjust as needed
+                    RegisteredAt = DateTime.UtcNow
+                };
+
+                await publishEndpoint.Publish(userRegisteredEvent);
+                Console.WriteLine($"[SignUp] Published UserRegisteredEvent for userId={user.Id}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SignUp] WARNING: Failed to publish UserRegisteredEvent: {ex.Message}");
+                // Don't fail the signup if event publishing fails
+            }
         }
         catch (Exception e)
         {
@@ -157,29 +178,25 @@ public class UserCommandService(
             userRepository.Update(user);
             await unitOfWork.CompleteAsync();
 
-            // TODO: Re-enable email notifications when Notifications microservice is available
             // Send 2FA setup confirmation email
-            /*
             try
             {
-                await emailCommandService.SendTemplatedEmailAsync(new SendEmailCommand
-                {
-                    To = user.Username,
-                    ToName = user.Username.Split('@')[0],
-                    Template = EmailTemplate.TwoFactorSetup,
-                    TemplateData = new Dictionary<string, object>
+                await notificationsHttpFacade.SendTemplatedEmailAsync(
+                    to: user.Username,
+                    toName: user.Username.Split('@')[0],
+                    templateName: "TwoFactorSetup",
+                    templateData: new Dictionary<string, object>
                     {
                         { "UserName", user.Username },
                         { "SetupDate", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC") }
                     }
-                });
+                );
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[VerifyTwoFactor] Failed to send 2FA setup email: {ex.Message}");
                 // Don't fail the request if email fails
             }
-            */
         }
 
         // Generate and return JWT token

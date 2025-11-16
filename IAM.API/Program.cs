@@ -11,12 +11,14 @@ using OsitoPolar.IAM.Service.Infrastructure.Hashing.BCrypt.Services;
 using OsitoPolar.IAM.Service.Infrastructure.Tokens.JWT.Services;
 using OsitoPolar.IAM.Service.Infrastructure.Tokens.JWT.Configuration;
 using OsitoPolar.IAM.Service.Infrastructure.Security;
+using OsitoPolar.IAM.Service.Infrastructure.External.Http;
 using OsitoPolar.IAM.Service.Shared.Infrastructure.Interfaces.ASP.Configuration;
 using OsitoPolar.IAM.Service.Shared.Domain.Repositories;
 using OsitoPolar.IAM.Service.Shared.Infrastructure.Persistence.EFC.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -86,6 +88,45 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 // ===========================
 builder.Services.AddScoped<IUserCommandService, UserCommandService>();
 builder.Services.AddScoped<IUserQueryService, UserQueryService>();
+
+// ===========================
+// HTTP Client for Notifications Service
+// ===========================
+var notificationsServiceUrl = builder.Configuration["ServiceUrls:Notifications"] ?? "http://notifications-service:8080";
+builder.Services.AddHttpClient<INotificationsHttpFacade, NotificationsHttpFacade>(client =>
+{
+    client.BaseAddress = new Uri(notificationsServiceUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+// ===========================
+// MassTransit + RabbitMQ Configuration
+// ===========================
+builder.Services.AddMassTransit(x =>
+{
+    // Configure RabbitMQ
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        var rabbitMqHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
+        var rabbitMqPort = builder.Configuration["RabbitMQ:Port"] ?? "5672";
+        var rabbitMqUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
+        var rabbitMqPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
+
+        cfg.Host($"rabbitmq://{rabbitMqHost}:{rabbitMqPort}", h =>
+        {
+            h.Username(rabbitMqUser);
+            h.Password(rabbitMqPass);
+        });
+
+        // Configure message retry policy
+        cfg.UseMessageRetry(r => r.Incremental(3, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)));
+
+        // Auto-configure all consumers
+        cfg.ConfigureEndpoints(context);
+    });
+});
+
+Console.WriteLine("✅ MassTransit + RabbitMQ configured for IAM Service");
 
 // ===========================
 // Dependency Injection - Application Services
