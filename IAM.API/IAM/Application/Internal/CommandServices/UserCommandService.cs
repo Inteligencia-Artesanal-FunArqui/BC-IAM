@@ -4,9 +4,7 @@ using OsitoPolar.IAM.Service.Domain.Model.Commands;
 using OsitoPolar.IAM.Service.Domain.Repositories;
 using OsitoPolar.IAM.Service.Domain.Services;
 using OsitoPolar.IAM.Service.Shared.Domain.Repositories;
-// using OsitoPolarPlatform.API.Notifications.Application.Internal.CommandServices;
-// using OsitoPolarPlatform.API.Notifications.Domain.Model.Commands;
-// using OsitoPolarPlatform.API.Notifications.Domain.Model.ValueObjects;
+using OsitoPolar.IAM.Service.Shared.Interfaces.ACL;
 
 namespace OsitoPolar.IAM.Service.Application.Internal.CommandServices;
 
@@ -23,9 +21,9 @@ public class UserCommandService(
     ITokenService tokenService,
     IHashingService hashingService,
     IUnitOfWork unitOfWork,
-    ITwoFactorService twoFactorService)
-    // TODO: Re-enable email notifications when Notifications microservice is available
-    // IEmailCommandService emailCommandService)
+    ITwoFactorService twoFactorService,
+    INotificationContextFacade notificationsContextFacade,
+    IProfilesContextFacade profilesContextFacade)
     : IUserCommandService
 {
     /**
@@ -110,11 +108,56 @@ public class UserCommandService(
     
             Console.WriteLine("[SignUp] Adding user to repository...");
             await userRepository.AddAsync(user);
-        
+
             Console.WriteLine("[SignUp] Completing transaction...");
             await unitOfWork.CompleteAsync();
-        
-            Console.WriteLine($"[SignUp] SUCCESS: User {command.Username} created successfully");
+
+            Console.WriteLine($"[SignUp] SUCCESS: User {command.Username} created successfully with ID: {user.Id}");
+
+            // FASE 2: Create Owner profile in Profiles Service
+            try
+            {
+                Console.WriteLine($"[SignUp] Creating Owner profile for user {user.Id} in Profiles Service...");
+                var ownerId = await profilesContextFacade.CreateOwnerProfile(
+                    userId: user.Id,
+                    firstName: command.FirstName,
+                    lastName: command.LastName,
+                    email: command.Email,
+                    street: command.Street,
+                    number: command.Number,
+                    city: command.City,
+                    postalCode: command.PostalCode,
+                    country: command.Country,
+                    planId: command.PlanId,
+                    maxUnits: command.MaxUnits
+                );
+                Console.WriteLine($"[SignUp] Owner profile created successfully with ID: {ownerId}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SignUp] WARNING: Failed to create Owner profile: {ex.Message}");
+                // Don't fail the registration if profile creation fails
+            }
+
+            // FASE 2: Send welcome email via Notifications Service
+            try
+            {
+                Console.WriteLine($"[SignUp] Sending welcome email to {command.Email}...");
+                var fullName = $"{command.FirstName} {command.LastName}";
+                var emailBody = $"<h1>Welcome to OsitoPolar!</h1><p>Hi {fullName}, your account has been created successfully.</p>";
+                await notificationsContextFacade.SendEmailNotification(
+                    to: command.Email,
+                    recipientName: fullName,
+                    subject: "Welcome to OsitoPolar",
+                    body: emailBody
+                );
+                Console.WriteLine($"[SignUp] Welcome email sent successfully to {command.Email}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SignUp] WARNING: Failed to send welcome email: {ex.Message}");
+                // Don't fail the registration if email fails
+            }
         }
         catch (Exception e)
         {
@@ -157,29 +200,24 @@ public class UserCommandService(
             userRepository.Update(user);
             await unitOfWork.CompleteAsync();
 
-            // TODO: Re-enable email notifications when Notifications microservice is available
             // Send 2FA setup confirmation email
-            /*
             try
             {
-                await emailCommandService.SendTemplatedEmailAsync(new SendEmailCommand
-                {
-                    To = user.Username,
-                    ToName = user.Username.Split('@')[0],
-                    Template = EmailTemplate.TwoFactorSetup,
-                    TemplateData = new Dictionary<string, object>
-                    {
-                        { "UserName", user.Username },
-                        { "SetupDate", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC") }
-                    }
-                });
+                var userName = user.Username.Split('@')[0];
+                var emailBody = $"<h1>2FA Enabled</h1><p>Hi {userName}, two-factor authentication has been successfully enabled on your account.</p>";
+                await notificationsContextFacade.SendEmailNotification(
+                    to: user.Username,
+                    recipientName: userName,
+                    subject: "Two-Factor Authentication Enabled",
+                    body: emailBody
+                );
+                Console.WriteLine($"[VerifyTwoFactor] 2FA setup confirmation email sent to {user.Username}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[VerifyTwoFactor] Failed to send 2FA setup email: {ex.Message}");
                 // Don't fail the request if email fails
             }
-            */
         }
 
         // Generate and return JWT token

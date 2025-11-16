@@ -8,7 +8,22 @@ public class IamContextFacade(IUserCommandService userCommandService, IUserQuery
 {
     public async Task<int> CreateUser(string username, string password)
     {
-        var signUpCommand = new SignUpCommand(username, password);
+        // Create SignUpCommand with default values for new required fields
+        // This maintains backward compatibility for other services calling this facade
+        var signUpCommand = new SignUpCommand(
+            Username: username,
+            Password: password,
+            FirstName: "Default",
+            LastName: "User",
+            Email: username, // Assuming username is email
+            Street: "N/A",
+            Number: "N/A",
+            City: "N/A",
+            PostalCode: "00000",
+            Country: "N/A",
+            PlanId: 1,
+            MaxUnits: 10
+        );
         await userCommandService.Handle(signUpCommand);
         var getUserByUsernameQuery = new GetUserByUsernameQuery(username);
         var result = await userQueryService.Handle(getUserByUsernameQuery);

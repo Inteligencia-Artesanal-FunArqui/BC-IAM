@@ -17,6 +17,8 @@ using OsitoPolar.IAM.Service.Shared.Infrastructure.Persistence.EFC.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using OsitoPolar.IAM.Service.Shared.Interfaces.ACL;
+using OsitoPolar.IAM.Service.Application.ACL.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -86,6 +88,7 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 // ===========================
 builder.Services.AddScoped<IUserCommandService, UserCommandService>();
 builder.Services.AddScoped<IUserQueryService, UserQueryService>();
+builder.Services.AddScoped<IRegistrationService, RegistrationService>();
 
 // ===========================
 // Dependency Injection - Application Services
@@ -94,12 +97,41 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IHashingService, HashingService>();
 builder.Services.AddScoped<ITwoFactorService, TwoFactorService>();
 
-// ⚠️ IMPORTANT: Facades for communication with other microservices
-// These facades will make HTTP calls to other services
-// For now they are commented out until we implement HTTP clients
-// builder.Services.AddScoped<IProfilesContextFacade, ProfilesHttpFacade>();
-// builder.Services.AddScoped<ISubscriptionContextFacade, SubscriptionHttpFacade>();
-// builder.Services.AddScoped<INotificationContextFacade, NotificationHttpFacade>();
+// ===========================
+// FASE 2: HTTP Facades for Microservices Communication
+// ===========================
+// Profiles Service - for creating Owner profiles
+builder.Services.AddHttpClient<IProfilesContextFacade, ProfilesHttpFacade>(client =>
+{
+    var profilesUrl = builder.Configuration["ServiceUrls:ProfilesService"]
+        ?? throw new InvalidOperationException("ProfilesService URL not configured");
+
+    client.BaseAddress = new Uri(profilesUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
+});
+
+// Notifications Service - for sending emails
+builder.Services.AddHttpClient<INotificationContextFacade, NotificationsHttpFacade>(client =>
+{
+    var notificationsUrl = builder.Configuration["ServiceUrls:NotificationsService"]
+        ?? throw new InvalidOperationException("NotificationsService URL not configured");
+
+    client.BaseAddress = new Uri(notificationsUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
+});
+
+// Subscriptions Service - for managing user plans
+builder.Services.AddHttpClient<ISubscriptionContextFacade, SubscriptionsHttpFacade>(client =>
+{
+    var subscriptionsUrl = builder.Configuration["ServiceUrls:SubscriptionsService"]
+        ?? throw new InvalidOperationException("SubscriptionsService URL not configured");
+
+    client.BaseAddress = new Uri(subscriptionsUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
+});
 
 // ===========================
 // Controllers Configuration
