@@ -9,6 +9,8 @@
 
     <ItemGroup>
         <!-- ASP.NET Core -->
+        <PackageReference Include="MassTransit" Version="8.5.5" />
+        <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.5" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
         <PackageReference Include="Stripe.net" Version="49.2.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.4" />
@@ -44,6 +46,10 @@
 
         <!-- Mediator pattern (used by Shared) -->
         <PackageReference Include="Cortex.Mediator" Version="1.6.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\OsitoPolar.Shared.Events\OsitoPolar.Shared.Events.csproj" />
     </ItemGroup>
 
 </Project>
