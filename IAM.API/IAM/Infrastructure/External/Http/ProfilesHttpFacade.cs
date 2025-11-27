@@ -214,7 +214,7 @@ public class ProfilesHttpFacade : IProfilesHttpFacade
         }
     }
 
-    public async Task<(int ownerId, int planId)?> GetOwnerDataByUserId(int userId)
+    public async Task<(int ownerId, int planId, decimal balance, int maxUnits)?> GetOwnerDataByUserId(int userId)
     {
         try
         {
@@ -227,7 +227,7 @@ public class ProfilesHttpFacade : IProfilesHttpFacade
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
                 if (result != null)
-                    return (result.Id, result.PlanId);
+                    return (result.Id, result.PlanId, result.Balance, result.MaxUnits);
             }
 
             return null;
@@ -239,7 +239,7 @@ public class ProfilesHttpFacade : IProfilesHttpFacade
         }
     }
 
-    public async Task<(int providerId, int planId)?> GetProviderDataByUserId(int userId)
+    public async Task<(int providerId, int planId, decimal balance, int maxClients, string companyName)?> GetProviderDataByUserId(int userId)
     {
         try
         {
@@ -252,7 +252,7 @@ public class ProfilesHttpFacade : IProfilesHttpFacade
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
                 if (result != null)
-                    return (result.Id, result.PlanId);
+                    return (result.Id, result.PlanId, result.Balance, result.MaxClients, result.CompanyName);
             }
 
             return null;
@@ -269,6 +269,6 @@ public class ProfilesHttpFacade : IProfilesHttpFacade
     private record ProviderAuthResponse(int Id, decimal Balance, int PlanId, int MaxClients, string CompanyName);
     private record EmailExistsResponse(bool Exists);
     private record CreateProfileResponse(int Id);
-    private record OwnerDataResponse(int Id, int PlanId);
-    private record ProviderDataResponse(int Id, int PlanId);
+    private record OwnerDataResponse(int Id, int PlanId, decimal Balance, int MaxUnits);
+    private record ProviderDataResponse(int Id, int PlanId, decimal Balance, int MaxClients, string CompanyName);
 }

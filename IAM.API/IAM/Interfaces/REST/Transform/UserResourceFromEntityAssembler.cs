@@ -21,7 +21,7 @@ public static class UserResourceFromEntityAssembler
             Id: user.Id,
             Username: user.Username,
             UserType: ownerProfile != null ? "Owner" : (providerProfile != null ? "Provider" : null),
-            MemberSince: DateTime.UtcNow, // TODO: Add CreatedAt field to User aggregate
+            MemberSince: user.CreatedDate?.DateTime ?? DateTime.UtcNow,
             TwoFactorEnabled: user.TwoFactorEnabled,
             OwnerProfile: ownerProfile,
             ProviderProfile: providerProfile

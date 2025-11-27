@@ -102,7 +102,7 @@ public class UsersController(
         {
             ownerProfileData = new OwnerProfileData(
                 ProfileId: ownerData.Value.ownerId,
-                Balance: 0, // TODO: Add balance to owner data endpoint
+                Balance: ownerData.Value.balance,
                 Plan: new SubscriptionPlanData(
                     Id: ownerSubscription.Value.planId,
                     PlanName: ownerSubscription.Value.planName,
@@ -113,7 +113,7 @@ public class UsersController(
                     MaxClients: null,
                     Features: new List<string>()
                 ),
-                MaxEquipment: ownerSubscription.Value.maxEquipment ?? 0,
+                MaxEquipment: ownerData.Value.maxUnits,
                 CurrentEquipmentCount: equipmentCount,
                 ActiveServiceRequests: activeServiceRequestsCount
             );
@@ -123,9 +123,9 @@ public class UsersController(
         {
             providerProfileData = new ProviderProfileData(
                 ProfileId: providerData.Value.providerId,
-                CompanyName: "", // TODO: Add company name to provider data endpoint
+                CompanyName: providerData.Value.companyName,
                 TaxId: null,
-                Balance: 0, // TODO: Add balance to provider data endpoint
+                Balance: providerData.Value.balance,
                 Plan: new SubscriptionPlanData(
                     Id: providerSubscription.Value.planId,
                     PlanName: providerSubscription.Value.planName,
@@ -136,7 +136,7 @@ public class UsersController(
                     MaxClients: providerSubscription.Value.maxClients,
                     Features: new List<string>()
                 ),
-                MaxClients: providerSubscription.Value.maxClients ?? 0,
+                MaxClients: providerData.Value.maxClients,
                 CurrentClientCount: clientCount,
                 ActiveServiceRequests: activeServiceRequestsCount
             );

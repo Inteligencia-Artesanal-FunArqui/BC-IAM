@@ -15,6 +15,7 @@ using OsitoPolar.IAM.Service.Infrastructure.External.Http;
 using OsitoPolar.IAM.Service.Shared.Infrastructure.Interfaces.ASP.Configuration;
 using OsitoPolar.IAM.Service.Shared.Domain.Repositories;
 using OsitoPolar.IAM.Service.Shared.Infrastructure.Persistence.EFC.Repositories;
+using OsitoPolar.IAM.Service.Infrastructure.Pipeline.Middleware.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -176,6 +177,8 @@ Console.WriteLine("✅ MassTransit + RabbitMQ configured for IAM Service");
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IHashingService, HashingService>();
 builder.Services.AddScoped<ITwoFactorService, TwoFactorService>();
+builder.Services.AddScoped<IPaymentProvider, StripePaymentProvider>();
+builder.Services.AddScoped<IRegistrationService, RegistrationService>();
 
 // ⚠️ IMPORTANT: Facades for communication with other microservices
 // These facades will make HTTP calls to other services
@@ -245,8 +248,8 @@ using (var scope = app.Services.CreateScope())
     var context = services.GetRequiredService<IAMDbContext>();
     try
     {
-        context.Database.CanConnect();
-        Console.WriteLine("✅ Database connection successful");
+        context.Database.EnsureCreated();
+        Console.WriteLine("✅ Database connection successful and schema ensured");
     }
     catch (Exception ex)
     {
@@ -264,6 +267,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowAllPolicy");
+
+// Custom JWT Authorization Middleware - validates tokens and sets HttpContext.Items["User"]
+// This is required because UsersController uses custom [Authorize] attribute that checks HttpContext.Items["User"]
+app.UseRequestAuthorization();
 
 app.UseAuthentication();
 app.UseAuthorization();

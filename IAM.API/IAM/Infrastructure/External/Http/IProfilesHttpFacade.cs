@@ -48,13 +48,13 @@ public interface IProfilesHttpFacade
 
     /// <summary>
     /// Get Owner profile data by user ID for UsersController.
-    /// Returns owner ID and plan ID.
+    /// Returns owner ID, plan ID, balance, and max units.
     /// </summary>
-    Task<(int ownerId, int planId)?> GetOwnerDataByUserId(int userId);
+    Task<(int ownerId, int planId, decimal balance, int maxUnits)?> GetOwnerDataByUserId(int userId);
 
     /// <summary>
     /// Get Provider profile data by user ID for UsersController.
-    /// Returns provider ID and plan ID.
+    /// Returns provider ID, plan ID, balance, max clients, and company name.
     /// </summary>
-    Task<(int providerId, int planId)?> GetProviderDataByUserId(int userId);
+    Task<(int providerId, int planId, decimal balance, int maxClients, string companyName)?> GetProviderDataByUserId(int userId);
 }
