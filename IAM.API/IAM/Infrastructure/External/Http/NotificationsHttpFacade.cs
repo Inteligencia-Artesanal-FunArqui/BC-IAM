@@ -104,4 +104,40 @@ public class NotificationsHttpFacade : INotificationsHttpFacade
             return false;
         }
     }
+
+    public async Task<bool> SendEmailNotification(string to, string recipientName, string subject, string htmlBody)
+    {
+        try
+        {
+            var request = new
+            {
+                to,
+                recipientName,
+                subject,
+                htmlBody
+            };
+
+            var content = new StringContent(
+                JsonSerializer.Serialize(request),
+                Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient.PostAsync("/api/v1/notifications/email", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("[IAM->Notifications] Email sent successfully to {Email}", to);
+                return true;
+            }
+
+            _logger.LogWarning("[IAM->Notifications] Failed to send email to {Email}: {StatusCode}",
+                to, response.StatusCode);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[IAM->Notifications] Error sending email to {Email}", to);
+            return false;
+        }
+    }
 }

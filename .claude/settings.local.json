@@ -7,7 +7,11 @@
       "Bash(dotnet restore:*)",
       "Bash(dotnet build:*)",
       "Bash(powershell.exe -ExecutionPolicy Bypass -File \"fix-references.ps1\")",
-      "Bash(dotnet run)"
+      "Bash(dotnet run)",
+      "Bash(dir /s /b)",
+      "Bash(powershell.exe -Command \"Get-ChildItem -Recurse -File | Select-Object -ExpandProperty FullName\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem -Path ''IAM.API'' -Directory -Recurse | Select-Object -ExpandProperty FullName\")",
+      "Bash(powershell.exe:*)"
     ],
     "deny": [],
     "ask": []

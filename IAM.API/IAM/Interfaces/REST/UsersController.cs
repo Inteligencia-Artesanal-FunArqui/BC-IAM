@@ -1,14 +1,11 @@
 using System.Net.Mime;
 using Microsoft.AspNetCore.Mvc;
-// using OsitoPolarPlatform.API.EquipmentManagement.Interfaces.ACL;
 using OsitoPolar.IAM.Service.Domain.Model.Queries;
 using OsitoPolar.IAM.Service.Domain.Services;
 using OsitoPolar.IAM.Service.Infrastructure.Pipeline.Middleware.Attributes;
 using OsitoPolar.IAM.Service.Interfaces.REST.Resources;
 using OsitoPolar.IAM.Service.Interfaces.REST.Transform;
-// using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
-// using OsitoPolarPlatform.API.ServiceRequests.Interfaces.ACL;
-// using OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.ACL;
+using OsitoPolar.IAM.Service.Infrastructure.External.Http;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace OsitoPolar.IAM.Service.Interfaces.REST;
@@ -28,10 +25,10 @@ namespace OsitoPolar.IAM.Service.Interfaces.REST;
 [SwaggerTag("Available User endpoints")]
 public class UsersController(
     IUserQueryService userQueryService,
-    IProfilesContextFacade profilesFacade,
-    ISubscriptionContextFacade subscriptionFacade,
-    IEquipmentContextFacade equipmentFacade,
-    IServiceRequestContextFacade serviceRequestFacade) : ControllerBase
+    IProfilesHttpFacade profilesFacade,
+    ISubscriptionsHttpFacade subscriptionFacade,
+    IEquipmentHttpFacade equipmentFacade,
+    IServiceRequestsHttpFacade serviceRequestFacade) : ControllerBase
 {
     /**
      * <summary>
@@ -97,17 +94,58 @@ public class UsersController(
             clientCount = 0;
         }
 
-        // Create a simplified user resource (we'll need to adjust the assembler or create inline resource)
-        // For now, using null for profile entities as we're using data tuples instead
+        // Build profile data DTOs from tuples
+        OwnerProfileData? ownerProfileData = null;
+        ProviderProfileData? providerProfileData = null;
+
+        if (ownerData.HasValue && ownerSubscription.HasValue)
+        {
+            ownerProfileData = new OwnerProfileData(
+                ProfileId: ownerData.Value.ownerId,
+                Balance: 0, // TODO: Add balance to owner data endpoint
+                Plan: new SubscriptionPlanData(
+                    Id: ownerSubscription.Value.planId,
+                    PlanName: ownerSubscription.Value.planName,
+                    PlanType: "Owner",
+                    Price: ownerSubscription.Value.price,
+                    BillingCycle: "Monthly",
+                    MaxEquipment: ownerSubscription.Value.maxEquipment,
+                    MaxClients: null,
+                    Features: new List<string>()
+                ),
+                MaxEquipment: ownerSubscription.Value.maxEquipment ?? 0,
+                CurrentEquipmentCount: equipmentCount,
+                ActiveServiceRequests: activeServiceRequestsCount
+            );
+        }
+
+        if (providerData.HasValue && providerSubscription.HasValue)
+        {
+            providerProfileData = new ProviderProfileData(
+                ProfileId: providerData.Value.providerId,
+                CompanyName: "", // TODO: Add company name to provider data endpoint
+                TaxId: null,
+                Balance: 0, // TODO: Add balance to provider data endpoint
+                Plan: new SubscriptionPlanData(
+                    Id: providerSubscription.Value.planId,
+                    PlanName: providerSubscription.Value.planName,
+                    PlanType: "Provider",
+                    Price: providerSubscription.Value.price,
+                    BillingCycle: "Monthly",
+                    MaxEquipment: null,
+                    MaxClients: providerSubscription.Value.maxClients,
+                    Features: new List<string>()
+                ),
+                MaxClients: providerSubscription.Value.maxClients ?? 0,
+                CurrentClientCount: clientCount,
+                ActiveServiceRequests: activeServiceRequestsCount
+            );
+        }
+
         var userResource = UserResourceFromEntityAssembler.ToResourceFromEntity(
             user,
-            null, // ownerProfile - not using entities anymore
-            null, // providerProfile - not using entities anymore
-            null, // ownerSubscription - not using entities anymore
-            null, // providerSubscription - not using entities anymore
-            equipmentCount,
-            activeServiceRequestsCount,
-            clientCount
+            ownerProfileData,
+            providerProfileData
         );
 
         return Ok(userResource);

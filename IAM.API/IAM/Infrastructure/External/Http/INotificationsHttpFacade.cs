@@ -28,4 +28,10 @@ public interface INotificationsHttpFacade
         string toName,
         string subject,
         string body);
+
+    /// <summary>
+    /// Send an email notification.
+    /// Endpoint: POST /api/v1/notifications/email
+    /// </summary>
+    Task<bool> SendEmailNotification(string to, string recipientName, string subject, string htmlBody);
 }

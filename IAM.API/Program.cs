@@ -90,13 +90,55 @@ builder.Services.AddScoped<IUserCommandService, UserCommandService>();
 builder.Services.AddScoped<IUserQueryService, UserQueryService>();
 
 // ===========================
-// HTTP Client for Notifications Service
+// FASE 2: HTTP Facades for Microservices Communication
 // ===========================
-var notificationsServiceUrl = builder.Configuration["ServiceUrls:Notifications"] ?? "http://notifications-service:8080";
+// Notifications Service - for sending email/in-app notifications
+var notificationsServiceUrl = builder.Configuration["ServiceUrls:NotificationsService"] ?? "http://notifications-service:8080";
 builder.Services.AddHttpClient<INotificationsHttpFacade, NotificationsHttpFacade>(client =>
 {
     client.BaseAddress = new Uri(notificationsServiceUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
+});
+
+// Profiles Service - for creating profiles and checking email existence
+var profilesServiceUrl = builder.Configuration["ServiceUrls:ProfilesService"]
+    ?? throw new InvalidOperationException("ProfilesService URL not configured");
+builder.Services.AddHttpClient<IProfilesHttpFacade, ProfilesHttpFacade>(client =>
+{
+    client.BaseAddress = new Uri(profilesServiceUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
+});
+
+// Subscriptions Service - for validating subscription plans during registration
+var subscriptionsServiceUrl = builder.Configuration["ServiceUrls:SubscriptionsService"]
+    ?? throw new InvalidOperationException("SubscriptionsService URL not configured");
+builder.Services.AddHttpClient<ISubscriptionsHttpFacade, SubscriptionsHttpFacade>(client =>
+{
+    client.BaseAddress = new Uri(subscriptionsServiceUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
+});
+
+// Equipment Service - for getting equipment statistics in UsersController
+var equipmentServiceUrl = builder.Configuration["ServiceUrls:EquipmentService"]
+    ?? throw new InvalidOperationException("EquipmentService URL not configured");
+builder.Services.AddHttpClient<IEquipmentHttpFacade, EquipmentHttpFacade>(client =>
+{
+    client.BaseAddress = new Uri(equipmentServiceUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
+});
+
+// ServiceRequests Service - for getting service request statistics in UsersController
+var serviceRequestsServiceUrl = builder.Configuration["ServiceUrls:ServiceRequestsService"]
+    ?? throw new InvalidOperationException("ServiceRequestsService URL not configured");
+builder.Services.AddHttpClient<IServiceRequestsHttpFacade, ServiceRequestsHttpFacade>(client =>
+{
+    client.BaseAddress = new Uri(serviceRequestsServiceUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
 });
 
 // ===========================

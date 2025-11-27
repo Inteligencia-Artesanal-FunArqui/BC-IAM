@@ -9,14 +9,8 @@ using OsitoPolar.IAM.Service.Domain.Services;
 using OsitoPolar.IAM.Service.Infrastructure.Pipeline.Middleware.Attributes;
 using OsitoPolar.IAM.Service.Interfaces.REST.Resources;
 using OsitoPolar.IAM.Service.Interfaces.REST.Transform;
-// using OsitoPolarPlatform.API.Notifications.Interfaces.ACL;
-// using OsitoPolarPlatform.API.Profiles.Domain.Model.Aggregates;
-// using OsitoPolarPlatform.API.Profiles.Domain.Model.Commands;
-// using OsitoPolarPlatform.API.Profiles.Domain.Model.ValueObjects;
-// using OsitoPolarPlatform.API.Profiles.Interfaces.ACL;
-// using OsitoPolarPlatform.API.Profiles.Domain.Services;
 using OsitoPolar.IAM.Service.Shared.Domain.Repositories;
-// using OsitoPolarPlatform.API.SubscriptionsAndPayments.Interfaces.ACL;
+using OsitoPolar.IAM.Service.Infrastructure.External.Http;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace OsitoPolar.IAM.Service.Interfaces.REST;
@@ -31,10 +25,10 @@ public class AuthenticationController(
     IRegistrationService registrationService,
     ITwoFactorService twoFactorService,
     IUserRepository userRepository,
-    IProfilesContextFacade profilesFacade,
-    ISubscriptionContextFacade subscriptionFacade,
+    IProfilesHttpFacade profilesFacade,
+    ISubscriptionsHttpFacade subscriptionFacade,
     IUnitOfWork unitOfWork,
-    INotificationContextFacade notificationFacade) : ControllerBase
+    INotificationsHttpFacade notificationFacade) : ControllerBase
 {
     private static string GenerateSecurePassword()
     {
