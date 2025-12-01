@@ -11,15 +11,14 @@ using OsitoPolar.IAM.Service.Infrastructure.Hashing.BCrypt.Services;
 using OsitoPolar.IAM.Service.Infrastructure.Tokens.JWT.Services;
 using OsitoPolar.IAM.Service.Infrastructure.Tokens.JWT.Configuration;
 using OsitoPolar.IAM.Service.Infrastructure.Security;
-using OsitoPolar.IAM.Service.Infrastructure.External.Http;
 using OsitoPolar.IAM.Service.Shared.Infrastructure.Interfaces.ASP.Configuration;
 using OsitoPolar.IAM.Service.Shared.Domain.Repositories;
 using OsitoPolar.IAM.Service.Shared.Infrastructure.Persistence.EFC.Repositories;
-using OsitoPolar.IAM.Service.Infrastructure.Pipeline.Middleware.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using MassTransit;
+using OsitoPolar.IAM.Service.Shared.Interfaces.ACL;
+using OsitoPolar.IAM.Service.Application.ACL.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -89,87 +88,7 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 // ===========================
 builder.Services.AddScoped<IUserCommandService, UserCommandService>();
 builder.Services.AddScoped<IUserQueryService, UserQueryService>();
-
-// ===========================
-// FASE 2: HTTP Facades for Microservices Communication
-// ===========================
-// Notifications Service - for sending email/in-app notifications
-var notificationsServiceUrl = builder.Configuration["ServiceUrls:NotificationsService"] ?? "http://notifications-service:8080";
-builder.Services.AddHttpClient<INotificationsHttpFacade, NotificationsHttpFacade>(client =>
-{
-    client.BaseAddress = new Uri(notificationsServiceUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
-    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
-});
-
-// Profiles Service - for creating profiles and checking email existence
-var profilesServiceUrl = builder.Configuration["ServiceUrls:ProfilesService"]
-    ?? throw new InvalidOperationException("ProfilesService URL not configured");
-builder.Services.AddHttpClient<IProfilesHttpFacade, ProfilesHttpFacade>(client =>
-{
-    client.BaseAddress = new Uri(profilesServiceUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
-    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
-});
-
-// Subscriptions Service - for validating subscription plans during registration
-var subscriptionsServiceUrl = builder.Configuration["ServiceUrls:SubscriptionsService"]
-    ?? throw new InvalidOperationException("SubscriptionsService URL not configured");
-builder.Services.AddHttpClient<ISubscriptionsHttpFacade, SubscriptionsHttpFacade>(client =>
-{
-    client.BaseAddress = new Uri(subscriptionsServiceUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
-    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
-});
-
-// Equipment Service - for getting equipment statistics in UsersController
-var equipmentServiceUrl = builder.Configuration["ServiceUrls:EquipmentService"]
-    ?? throw new InvalidOperationException("EquipmentService URL not configured");
-builder.Services.AddHttpClient<IEquipmentHttpFacade, EquipmentHttpFacade>(client =>
-{
-    client.BaseAddress = new Uri(equipmentServiceUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
-    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
-});
-
-// ServiceRequests Service - for getting service request statistics in UsersController
-var serviceRequestsServiceUrl = builder.Configuration["ServiceUrls:ServiceRequestsService"]
-    ?? throw new InvalidOperationException("ServiceRequestsService URL not configured");
-builder.Services.AddHttpClient<IServiceRequestsHttpFacade, ServiceRequestsHttpFacade>(client =>
-{
-    client.BaseAddress = new Uri(serviceRequestsServiceUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
-    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
-});
-
-// ===========================
-// MassTransit + RabbitMQ Configuration
-// ===========================
-builder.Services.AddMassTransit(x =>
-{
-    // Configure RabbitMQ
-    x.UsingRabbitMq((context, cfg) =>
-    {
-        var rabbitMqHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
-        var rabbitMqPort = builder.Configuration["RabbitMQ:Port"] ?? "5672";
-        var rabbitMqUser = builder.Configuration["RabbitMQ:Username"] ?? "guest";
-        var rabbitMqPass = builder.Configuration["RabbitMQ:Password"] ?? "guest";
-
-        cfg.Host($"rabbitmq://{rabbitMqHost}:{rabbitMqPort}", h =>
-        {
-            h.Username(rabbitMqUser);
-            h.Password(rabbitMqPass);
-        });
-
-        // Configure message retry policy
-        cfg.UseMessageRetry(r => r.Incremental(3, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)));
-
-        // Auto-configure all consumers
-        cfg.ConfigureEndpoints(context);
-    });
-});
-
-Console.WriteLine("✅ MassTransit + RabbitMQ configured for IAM Service");
+builder.Services.AddScoped<IRegistrationService, RegistrationService>();
 
 // ===========================
 // Dependency Injection - Application Services
@@ -177,15 +96,42 @@ Console.WriteLine("✅ MassTransit + RabbitMQ configured for IAM Service");
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IHashingService, HashingService>();
 builder.Services.AddScoped<ITwoFactorService, TwoFactorService>();
-builder.Services.AddScoped<IPaymentProvider, StripePaymentProvider>();
-builder.Services.AddScoped<IRegistrationService, RegistrationService>();
 
-// ⚠️ IMPORTANT: Facades for communication with other microservices
-// These facades will make HTTP calls to other services
-// For now they are commented out until we implement HTTP clients
-// builder.Services.AddScoped<IProfilesContextFacade, ProfilesHttpFacade>();
-// builder.Services.AddScoped<ISubscriptionContextFacade, SubscriptionHttpFacade>();
-// builder.Services.AddScoped<INotificationContextFacade, NotificationHttpFacade>();
+// ===========================
+// FASE 2: HTTP Facades for Microservices Communication
+// ===========================
+// Profiles Service - for creating Owner profiles
+builder.Services.AddHttpClient<IProfilesContextFacade, ProfilesHttpFacade>(client =>
+{
+    var profilesUrl = builder.Configuration["ServiceUrls:ProfilesService"]
+        ?? throw new InvalidOperationException("ProfilesService URL not configured");
+
+    client.BaseAddress = new Uri(profilesUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
+});
+
+// Notifications Service - for sending emails
+builder.Services.AddHttpClient<INotificationContextFacade, NotificationsHttpFacade>(client =>
+{
+    var notificationsUrl = builder.Configuration["ServiceUrls:NotificationsService"]
+        ?? throw new InvalidOperationException("NotificationsService URL not configured");
+
+    client.BaseAddress = new Uri(notificationsUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
+});
+
+// Subscriptions Service - for managing user plans
+builder.Services.AddHttpClient<ISubscriptionContextFacade, SubscriptionsHttpFacade>(client =>
+{
+    var subscriptionsUrl = builder.Configuration["ServiceUrls:SubscriptionsService"]
+        ?? throw new InvalidOperationException("SubscriptionsService URL not configured");
+
+    client.BaseAddress = new Uri(subscriptionsUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "IAM-Service/1.0");
+});
 
 // ===========================
 // Controllers Configuration
@@ -248,8 +194,8 @@ using (var scope = app.Services.CreateScope())
     var context = services.GetRequiredService<IAMDbContext>();
     try
     {
-        context.Database.EnsureCreated();
-        Console.WriteLine("✅ Database connection successful and schema ensured");
+        context.Database.CanConnect();
+        Console.WriteLine("✅ Database connection successful");
     }
     catch (Exception ex)
     {
@@ -267,10 +213,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowAllPolicy");
-
-// Custom JWT Authorization Middleware - validates tokens and sets HttpContext.Items["User"]
-// This is required because UsersController uses custom [Authorize] attribute that checks HttpContext.Items["User"]
-app.UseRequestAuthorization();
 
 app.UseAuthentication();
 app.UseAuthorization();

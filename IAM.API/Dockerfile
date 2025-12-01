@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+﻿FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
@@ -7,12 +7,10 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["OsitoPolar.Shared.Events/OsitoPolar.Shared.Events.csproj", "OsitoPolar.Shared.Events/"]
-COPY ["OsitoPolar.IAM.Service/IAM.API/IAM.API.csproj", "OsitoPolar.IAM.Service/IAM.API/"]
-RUN dotnet restore "OsitoPolar.IAM.Service/IAM.API/IAM.API.csproj"
-COPY OsitoPolar.Shared.Events/ OsitoPolar.Shared.Events/
-COPY OsitoPolar.IAM.Service/IAM.API/ OsitoPolar.IAM.Service/IAM.API/
-WORKDIR "/src/OsitoPolar.IAM.Service/IAM.API"
+COPY ["IAM.API/IAM.API.csproj", "IAM.API/"]
+RUN dotnet restore "IAM.API/IAM.API.csproj"
+COPY . .
+WORKDIR "/src/IAM.API"
 RUN dotnet build "IAM.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
