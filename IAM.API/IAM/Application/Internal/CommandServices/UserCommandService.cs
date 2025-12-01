@@ -3,8 +3,10 @@ using OsitoPolar.IAM.Service.Domain.Model.Aggregates;
 using OsitoPolar.IAM.Service.Domain.Model.Commands;
 using OsitoPolar.IAM.Service.Domain.Repositories;
 using OsitoPolar.IAM.Service.Domain.Services;
+using OsitoPolar.IAM.Service.Infrastructure.External.Http;
 using OsitoPolar.IAM.Service.Shared.Domain.Repositories;
-using OsitoPolar.IAM.Service.Shared.Interfaces.ACL;
+using MassTransit;
+using OsitoPolar.Shared.Events.Events;
 
 namespace OsitoPolar.IAM.Service.Application.Internal.CommandServices;
 
@@ -22,8 +24,8 @@ public class UserCommandService(
     IHashingService hashingService,
     IUnitOfWork unitOfWork,
     ITwoFactorService twoFactorService,
-    INotificationContextFacade notificationsContextFacade,
-    IProfilesContextFacade profilesContextFacade)
+    INotificationsHttpFacade notificationsHttpFacade,
+    IPublishEndpoint publishEndpoint)
     : IUserCommandService
 {
     /**
@@ -112,51 +114,27 @@ public class UserCommandService(
             Console.WriteLine("[SignUp] Completing transaction...");
             await unitOfWork.CompleteAsync();
 
-            Console.WriteLine($"[SignUp] SUCCESS: User {command.Username} created successfully with ID: {user.Id}");
+            Console.WriteLine($"[SignUp] SUCCESS: User {command.Username} created successfully");
 
-            // FASE 2: Create Owner profile in Profiles Service
+            // Publish UserRegisteredEvent to RabbitMQ
             try
             {
-                Console.WriteLine($"[SignUp] Creating Owner profile for user {user.Id} in Profiles Service...");
-                var ownerId = await profilesContextFacade.CreateOwnerProfile(
-                    userId: user.Id,
-                    firstName: command.FirstName,
-                    lastName: command.LastName,
-                    email: command.Email,
-                    street: command.Street,
-                    number: command.Number,
-                    city: command.City,
-                    postalCode: command.PostalCode,
-                    country: command.Country,
-                    planId: command.PlanId,
-                    maxUnits: command.MaxUnits
-                );
-                Console.WriteLine($"[SignUp] Owner profile created successfully with ID: {ownerId}");
+                var userRegisteredEvent = new UserRegisteredEvent
+                {
+                    UserId = user.Id,
+                    Username = user.Username,
+                    Email = user.Username, // Assuming username is email
+                    Role = "Owner", // Default role, adjust as needed
+                    RegisteredAt = DateTime.UtcNow
+                };
+
+                await publishEndpoint.Publish(userRegisteredEvent);
+                Console.WriteLine($"[SignUp] Published UserRegisteredEvent for userId={user.Id}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SignUp] WARNING: Failed to create Owner profile: {ex.Message}");
-                // Don't fail the registration if profile creation fails
-            }
-
-            // FASE 2: Send welcome email via Notifications Service
-            try
-            {
-                Console.WriteLine($"[SignUp] Sending welcome email to {command.Email}...");
-                var fullName = $"{command.FirstName} {command.LastName}";
-                var emailBody = $"<h1>Welcome to OsitoPolar!</h1><p>Hi {fullName}, your account has been created successfully.</p>";
-                await notificationsContextFacade.SendEmailNotification(
-                    to: command.Email,
-                    recipientName: fullName,
-                    subject: "Welcome to OsitoPolar",
-                    body: emailBody
-                );
-                Console.WriteLine($"[SignUp] Welcome email sent successfully to {command.Email}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[SignUp] WARNING: Failed to send welcome email: {ex.Message}");
-                // Don't fail the registration if email fails
+                Console.WriteLine($"[SignUp] WARNING: Failed to publish UserRegisteredEvent: {ex.Message}");
+                // Don't fail the signup if event publishing fails
             }
         }
         catch (Exception e)
@@ -203,15 +181,16 @@ public class UserCommandService(
             // Send 2FA setup confirmation email
             try
             {
-                var userName = user.Username.Split('@')[0];
-                var emailBody = $"<h1>2FA Enabled</h1><p>Hi {userName}, two-factor authentication has been successfully enabled on your account.</p>";
-                await notificationsContextFacade.SendEmailNotification(
+                await notificationsHttpFacade.SendTemplatedEmailAsync(
                     to: user.Username,
-                    recipientName: userName,
-                    subject: "Two-Factor Authentication Enabled",
-                    body: emailBody
+                    toName: user.Username.Split('@')[0],
+                    templateName: "TwoFactorSetup",
+                    templateData: new Dictionary<string, object>
+                    {
+                        { "UserName", user.Username },
+                        { "SetupDate", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC") }
+                    }
                 );
-                Console.WriteLine($"[VerifyTwoFactor] 2FA setup confirmation email sent to {user.Username}");
             }
             catch (Exception ex)
             {
